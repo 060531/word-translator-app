@@ -2,5 +2,4 @@ streamlit
 pytesseract
 pillow
 deep-translator
-opencv-python
 gTTS
