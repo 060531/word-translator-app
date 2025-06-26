@@ -19,7 +19,7 @@ def init_firebase():
             "type": st.secrets["FIREBASE"]["type"],
             "project_id": st.secrets["FIREBASE"]["project_id"],
             "private_key_id": st.secrets["FIREBASE"]["private_key_id"],
-            "private_key": st.secrets["FIREBASE"]["private_key"].replace('\\n', '\n'),
+            "private_key": st.secrets["FIREBASE"]["private_key"],  # ❌ เอา .replace(...) ออก
             "client_email": st.secrets["FIREBASE"]["client_email"],
             "client_id": st.secrets["FIREBASE"]["client_id"],
             "auth_uri": st.secrets["FIREBASE"]["auth_uri"],
