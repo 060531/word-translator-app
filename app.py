@@ -6,15 +6,28 @@ from gtts import gTTS
 import io
 import firebase_admin
 from firebase_admin import credentials, db
+import json
 
 # ✅ ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="📘 Word & Sentence Translator", layout="centered")
 st.title("📘 โปรแกรมแปลศัพท์ + ประโยค + เสียงอ่าน")
 
-# ✅ Firebase Init
+# ✅ Firebase Init จาก st.secrets
 def init_firebase():
     if not firebase_admin._apps:
-        cred = credentials.Certificate("firebase-key.json")
+        firebase_config = {
+            "type": st.secrets["FIREBASE"]["type"],
+            "project_id": st.secrets["FIREBASE"]["project_id"],
+            "private_key_id": st.secrets["FIREBASE"]["private_key_id"],
+            "private_key": st.secrets["FIREBASE"]["private_key"].replace('\\n', '\n'),
+            "client_email": st.secrets["FIREBASE"]["client_email"],
+            "client_id": st.secrets["FIREBASE"]["client_id"],
+            "auth_uri": st.secrets["FIREBASE"]["auth_uri"],
+            "token_uri": st.secrets["FIREBASE"]["token_uri"],
+            "auth_provider_x509_cert_url": st.secrets["FIREBASE"]["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": st.secrets["FIREBASE"]["client_x509_cert_url"]
+        }
+        cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {
             'databaseURL': 'https://vocab-tracker-7e059-default-rtdb.asia-southeast1.firebasedatabase.app/'
         })
