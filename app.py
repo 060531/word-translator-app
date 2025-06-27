@@ -19,7 +19,7 @@ def init_firebase():
             "type": st.secrets["FIREBASE"]["type"],
             "project_id": st.secrets["FIREBASE"]["project_id"],
             "private_key_id": st.secrets["FIREBASE"]["private_key_id"],
-            "private_key": st.secrets["FIREBASE"]["private_key"],  # ❌ เอา .replace(...) ออก
+            "private_key": st.secrets["FIREBASE"]["private_key"],
             "client_email": st.secrets["FIREBASE"]["client_email"],
             "client_id": st.secrets["FIREBASE"]["client_id"],
             "auth_uri": st.secrets["FIREBASE"]["auth_uri"],
@@ -32,15 +32,31 @@ def init_firebase():
             'databaseURL': 'https://vocab-tracker-7e059-default-rtdb.asia-southeast1.firebasedatabase.app/'
         })
 
-# ✅ Save to Firebase
+# ✅ Save to Firebase (เฉพาะคำใหม่)
 def save_to_firebase(data):
     init_firebase()
     ref = db.reference('vocabulary')
+
+    existing_data = ref.get()
+    existing_words = set()
+
+    if existing_data:
+        for item in existing_data.values():
+            existing_words.add(item.get("english", "").lower())
+
+    added_count = 0
     for word, translation in data:
-        ref.push({
-            "english": word,
-            "thai": translation
-        })
+        if word.lower() not in existing_words:
+            ref.push({
+                "english": word,
+                "thai": translation
+            })
+            added_count += 1
+
+    if added_count == 0:
+        st.info("📌 ไม่มีคำใหม่เพิ่ม เพราะคำศัพท์ทั้งหมดมีอยู่แล้วใน Firebase")
+    else:
+        st.success(f"✅ บันทึกคำใหม่ {added_count} คำ ลง Firebase เรียบร้อยแล้ว")
 
 # ✅ ฟอร์มอัปโหลดภาพ
 uploaded_file = st.file_uploader("📤 อัปโหลดภาพภาษาอังกฤษ", type=["jpg", "jpeg", "png"])
@@ -80,10 +96,9 @@ if uploaded_file:
             for eng, th in table_data:
                 st.write(f"| {eng} | {th} |")
 
-        # ✅ ปุ่มบันทึก แสดง *หลังจากมีคำศัพท์*
+        # ✅ ปุ่มบันทึก
         if table_data and st.button("💾 บันทึกลง Firebase"):
             save_to_firebase(table_data)
-            st.success("✅ บันทึกลง Firebase เรียบร้อยแล้ว")
 
         # ✅ แปลทั้งประโยค
         st.subheader("📝 แปลเป็นประโยคเต็ม")
