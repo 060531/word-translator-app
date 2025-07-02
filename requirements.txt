@@ -1,8 +1,7 @@
 streamlit
 pytesseract
-Pillow
-firebase-admin
+pillow
 deep-translator
 gTTS
+firebase-admin
 PyPDF2
-python-pptx
