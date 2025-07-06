@@ -7,3 +7,4 @@ vocab-tracker-7e059-firebase-adminsdk-*.json
 .streamlit/secrets.toml
 .streamlit/secrets.toml
 serviceAccountKey.json
+.streamlit/secrets.toml
