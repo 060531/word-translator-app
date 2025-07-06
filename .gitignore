@@ -1,1 +1,2 @@
+# อย่า commit secrets.toml ขึ้น Git
 .streamlit/secrets.toml
