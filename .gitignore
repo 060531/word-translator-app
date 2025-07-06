@@ -1,3 +1,7 @@
 # ไม่ให้ commit ไฟล์ Firebase key หรือ Secrets
 *.json
+.streamlit/secrets.toml# ignore Firebase service account
+vocab-tracker-7e059-firebase-adminsdk-*.json
+
+# ignore local secrets for Streamlit
 .streamlit/secrets.toml
