@@ -24,29 +24,15 @@ def normalize(w: str) -> str:
     return re.sub(r"[^A-Za-z0-9\-]", "", w).lower().strip()
 
 @st.cache_resource
-def init_firebase_ref():
-    """
-    Initialize Firebase Admin and return a reference to /vocabulary.
-    Expects a [FIREBASE] table in .streamlit/secrets.toml with
-    keys matching a serviceAccount JSON: private_key, project_id, etc.
-    """
-    if "FIREBASE" not in st.secrets:
-        st.error("❌ FIREBASE config not found in secrets.toml")
-        st.stop()
-
-    fb_conf = st.secrets["FIREBASE"]
-    # fb_conf must be a dict with your serviceAccount JSON fields
+def init_firebase():
+    # อ่าน JSON string จาก secrets
+    svc_json = st.secrets["FIREBASE"]["service_account"]
+    fb_conf = json.loads(svc_json)
     cred = credentials.Certificate(fb_conf)
     if not firebase_admin._apps:
-        firebase_admin.initialize_app(
-            cred,
-            {"databaseURL": fb_conf.get(
-                "databaseURL",
-                f"https://{fb_conf['project_id']}-default-rtdb.asia-southeast1.firebasedatabase.app"
-            )}
-        )
-    return db.reference("vocabulary")
-
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": f"https://{fb_conf['project_id']}-default-rtdb.asia-southeast1.firebasedatabase.app"
+        })
 def save_to_firebase(pairs: list[tuple[str,str]]):
     """Save only new words to Firebase under /vocabulary."""
     ref = init_firebase_ref()
