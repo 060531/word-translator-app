@@ -5,3 +5,5 @@ vocab-tracker-7e059-firebase-adminsdk-*.json
 
 # ignore local secrets for Streamlit
 .streamlit/secrets.toml
+.streamlit/secrets.toml
+serviceAccountKey.json
