@@ -19,23 +19,25 @@ st.title("📘 โปรแกรมแปลศัพท์ + ประโย�
 def normalize(word: str) -> str:
     return re.sub(r"[^a-zA-Z0-9\-]", "", word).strip().lower()
 
-# ─── Firebase init (ใช้ st.secrets["FIREBASE"]["service_account"]) ──────
+# ─── Firebase init ──────────────────────────────────────────────────────
 @st.cache_resource
-def init_firebase():
-    # อ่าน JSON string จาก triple-quoted secret
+def init_firebase_ref():
+    # อ่าน JSON จาก secret ที่ชื่อ service_account
     svc_str = st.secrets["FIREBASE"]["service_account"]
     svc_json = json.loads(svc_str)
     cred = credentials.Certificate(svc_json)
     if not firebase_admin._apps:
         firebase_admin.initialize_app(
             cred,
-            {"databaseURL": f"https://{svc_json['project_id']}-default-rtdb.asia-southeast1.firebasedatabase.app"}
+            {
+                "databaseURL": f"https://{svc_json['project_id']}-default-rtdb.asia-southeast1.firebasedatabase.app"
+            }
         )
     return db.reference("vocabulary")
 
 # ─── ฟังก์ชันบันทึกคำใหม่ลง Firebase ─────────────────────────────────
 def save_to_firebase(pairs: list[tuple[str,str]]):
-    ref = init_firebase()
+    ref = init_firebase_ref()
     existing = ref.get() or {}
     seen = { normalize(v.get("english","")) for v in existing.values() }
     added = 0
@@ -50,16 +52,16 @@ def save_to_firebase(pairs: list[tuple[str,str]]):
     else:
         st.info("📌 ไม่มีคำใหม่ลง Firebase เพราะซ้ำทั้งหมด")
 
-# ─── อัปโหลดไฟล์ OCR/Extract ────────────────────────────────────────────
+# ─── รับไฟล์ อัปโหลด + OCR/Extract ─────────────────────────────────────
 uploaded = st.file_uploader("📤 อัปโหลดไฟล์ (.jpg .png .pdf .pptx)", type=["jpg","jpeg","png","pdf","pptx"])
 text = ""
 if uploaded:
-    t = uploaded.type
-    if t.startswith("image/"):
+    ctype = uploaded.type
+    if ctype.startswith("image/"):
         img = Image.open(uploaded)
         st.image(img, use_container_width=True)
         text = pytesseract.image_to_string(img.convert("L"), lang="eng")
-    elif t == "application/pdf":
+    elif ctype == "application/pdf":
         pdf = PdfReader(uploaded)
         n = len(pdf.pages)
         st.write(f"📄 พบ {n} หน้า")
@@ -75,7 +77,10 @@ if uploaded:
             text = "\n".join(p.extract_text() for p in pdf.pages)
     else:  # pptx
         prs = Presentation(uploaded)
-        slides = ["\n".join(s.text for s in sl.shapes if hasattr(s,"text")) for sl in prs.slides]
+        slides = [
+            "\n".join(sp.text for sp in sl.shapes if hasattr(sp,"text"))
+            for sl in prs.slides
+        ]
         m = len(slides)
         st.write(f"📊 พบ {m} สไลด์")
         mode = st.radio("โหมด PPTX", ["สไลด์เดียว","ช่วงสไลด์","ทุกสไลด์"])
@@ -92,6 +97,7 @@ if uploaded:
 # ─── แก้ไขข้อความก่อนแปล ─────────────────────────────────────────────────
 if text:
     editable = st.text_area("📋 ข้อความ OCR/Extract (แก้ไขได้)", text, height=200)
+
     if st.button("🔊 อ่านต้นฉบับ"):
         buf = io.BytesIO()
         gTTS(editable, lang="en").write_to_fp(buf); buf.seek(0)
@@ -109,7 +115,7 @@ if text:
         } for w in words])
         st.session_state.vocab = df
 
-# ─── แก้ไข/ลบก่อนบันทึก ───────────────────────────────────────────────────
+# ─── แก้ไข/ลบ ก่อนบันทึก ───────────────────────────────────────────────────
 if "vocab" in st.session_state:
     st.info("✏️ แก้ไข/ลบ คำก่อนบันทึก")
     edited = st.data_editor(
