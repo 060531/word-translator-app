@@ -22,10 +22,10 @@ def normalize(w):
 # ─── Firebase Init ────────────────────────────────────
 @st.cache_resource
 def init_firebase_ref():
-    # โหลด config จาก secrets.toml
     fb = dict(st.secrets["FIREBASE"])
-    # แปลง \\n ให้เป็น newline จริง
+    # แปลง "\n" ให้กลับเป็น newline จริง
     fb["private_key"] = fb["private_key"].replace("\\n", "\n")
+    
     cred = credentials.Certificate(fb)
     if not firebase_admin._apps:
         firebase_admin.initialize_app(
