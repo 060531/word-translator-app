@@ -11,31 +11,24 @@ import pandas as pd
 from PyPDF2 import PdfReader
 from pptx import Presentation
 
-# ✅ ตั้งค่าหน้าเว็บ
+# ---------- ตั้งค่าหน้าเว็บ ----------
 st.set_page_config(page_title="📘 Word & Sentence Translator", layout="centered")
 st.title("📘 โปรแกรมแปลศัพท์ + ประโยค + เสียงอ่าน")
 
-# ✅ Firebase Init
+# ---------- ฟังก์ชัน Normalize ----------
+def normalize(word):
+    return re.sub(r"[^a-zA-Z0-9\-]", "", word).strip().lower()
+
+# ---------- Firebase Init ----------
 def init_firebase():
     if not firebase_admin._apps:
-        firebase_config = {
-            "type": st.secrets["FIREBASE"]["type"],
-            "project_id": st.secrets["FIREBASE"]["project_id"],
-            "private_key_id": st.secrets["FIREBASE"]["private_key_id"],
-            "private_key": st.secrets["FIREBASE"]["private_key"],
-            "client_email": st.secrets["FIREBASE"]["client_email"],
-            "client_id": st.secrets["FIREBASE"]["client_id"],
-            "auth_uri": st.secrets["FIREBASE"]["auth_uri"],
-            "token_uri": st.secrets["FIREBASE"]["token_uri"],
-            "auth_provider_x509_cert_url": st.secrets["FIREBASE"]["auth_provider_x509_cert_url"],
-            "client_x509_cert_url": st.secrets["FIREBASE"]["client_x509_cert_url"]
-        }
+        firebase_config = st.secrets["FIREBASE"]
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {
             'databaseURL': 'https://vocab-tracker-7e059-default-rtdb.asia-southeast1.firebasedatabase.app/'
         })
 
-# ✅ บันทึกเฉพาะคำใหม่ลง Firebase
+# ---------- บันทึกคำศัพท์ใหม่ ----------
 def save_to_firebase(data):
     init_firebase()
     ref = db.reference('vocabulary')
@@ -44,17 +37,17 @@ def save_to_firebase(data):
 
     if existing_data:
         for item in existing_data.values():
-            clean_word = re.sub(r"[^a-zA-Z0-9\-]", "", item.get("english", "")).lower()
-            existing_words.add(clean_word)
+            existing_words.add(normalize(item.get("english", "")))
 
     added_count = 0
     for word, translation in data:
-        clean_word = re.sub(r"[^a-zA-Z0-9\-]", "", word).lower()
-        if clean_word and clean_word not in existing_words:
+        cleaned = normalize(word)
+        if cleaned and cleaned not in existing_words:
             ref.push({
-                "english": word,
-                "thai": translation
+                "english": word.strip(),
+                "thai": translation.strip()
             })
+            existing_words.add(cleaned)
             added_count += 1
 
     if added_count == 0:
@@ -62,39 +55,58 @@ def save_to_firebase(data):
     else:
         st.success(f"✅ บันทึกคำใหม่ {added_count} คำ ลง Firebase เรียบร้อยแล้ว")
 
-# ✅ อัปโหลดไฟล์
+# ---------- อัปโหลดไฟล์ ----------
 uploaded_file = st.file_uploader("📤 อัปโหลดไฟล์ (.jpg, .png, .pdf, .pptx)", type=["jpg", "jpeg", "png", "pdf", "pptx"])
 text = ""
 
 if uploaded_file:
     file_type = uploaded_file.type
 
+    # ---------- IMAGE ----------
     if file_type.startswith("image/"):
         image = Image.open(uploaded_file)
         st.image(image, caption='📷 ภาพต้นฉบับ', use_container_width=True)
         gray_image = image.convert("L")
         text = pytesseract.image_to_string(gray_image, lang="eng")
 
+    # ---------- PDF ----------
     elif file_type == "application/pdf":
         reader = PdfReader(uploaded_file)
-        num_pages = len(reader.pages)
-        selected_page = st.selectbox("📄 เลือกหน้าที่ต้องการอ่าน", list(range(1, num_pages + 1)), index=0)
-        text = reader.pages[selected_page - 1].extract_text()
+        total_pages = len(reader.pages)
+        st.write(f"📄 พบทั้งหมด {total_pages} หน้า")
 
+        mode = st.radio("เลือกหน้าที่ต้องการแปล", ["📌 เลือกหน้าเดียว", "📍 ช่วงหน้า", "📚 ทุกหน้า"])
+        if mode == "📌 เลือกหน้าเดียว":
+            page = st.selectbox("📄 เลือกหน้า", list(range(1, total_pages + 1)), index=0)
+            text = reader.pages[page - 1].extract_text()
+        elif mode == "📍 ช่วงหน้า":
+            start = st.number_input("เริ่มหน้า", 1, total_pages, value=1)
+            end = st.number_input("ถึงหน้า", start, total_pages, value=start)
+            texts = [reader.pages[i - 1].extract_text() for i in range(start, end + 1)]
+            text = "\n\n".join(texts)
+        else:
+            all_text = [p.extract_text() for p in reader.pages]
+            text = "\n\n".join(all_text)
+
+    # ---------- PPTX ----------
     elif file_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
         prs = Presentation(uploaded_file)
-        slide_texts = []
-        for slide in prs.slides:
-            content = []
-            for shape in slide.shapes:
-                if hasattr(shape, "text"):
-                    content.append(shape.text)
-            slide_texts.append("\n".join(content))
+        slide_texts = ["\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")]) for slide in prs.slides]
+        total_slides = len(slide_texts)
+        st.write(f"📊 พบทั้งหมด {total_slides} สไลด์")
 
-        selected_slide = st.selectbox("📊 เลือกสไลด์ที่ต้องการอ่าน", list(range(1, len(slide_texts) + 1)), index=0)
-        text = slide_texts[selected_slide - 1]
+        mode = st.radio("เลือกสไลด์", ["📌 สไลด์เดียว", "📍 ช่วงสไลด์", "📚 ทุกสไลด์"])
+        if mode == "📌 สไลด์เดียว":
+            slide = st.selectbox("เลือกสไลด์", list(range(1, total_slides + 1)), index=0)
+            text = slide_texts[slide - 1]
+        elif mode == "📍 ช่วงสไลด์":
+            start = st.number_input("เริ่มสไลด์", 1, total_slides, value=1)
+            end = st.number_input("ถึงสไลด์", start, total_slides, value=start)
+            text = "\n\n".join(slide_texts[start - 1:end])
+        else:
+            text = "\n\n".join(slide_texts)
 
-# ✅ แสดงข้อความให้แก้ไข
+# ---------- ตรวจแก้ข้อความ ----------
 if text:
     editable_text = st.text_area("📋 ข้อความที่ตรวจจับได้ (แก้ไขได้)", value=text.strip(), height=200)
 
@@ -105,7 +117,6 @@ if text:
         en_audio.seek(0)
         st.audio(en_audio, format='audio/mp3')
 
-    # ✅ ปุ่มแปลคำศัพท์
     if st.button("🧠 แปลคำศัพท์"):
         words = []
         for line in editable_text.splitlines():
@@ -114,18 +125,17 @@ if text:
                 if clean_word:
                     words.append(clean_word)
 
-        table_data = []
+        vocab = []
         for word in words:
             try:
                 th = GoogleTranslator(source="en", target="th").translate(word)
             except:
                 th = "-"
-            table_data.append({"english": word, "thai": th})
+            vocab.append({"english": word, "thai": th})
 
-        # ✅ เก็บใน session_state
-        st.session_state["vocab_df"] = pd.DataFrame(table_data)
+        st.session_state["vocab_df"] = pd.DataFrame(vocab)
 
-# ✅ แก้ไขก่อนบันทึก
+# ---------- แก้ไขคำศัพท์ก่อนบันทึก ----------
 if "vocab_df" in st.session_state:
     st.info("✏️ แก้ไข/ลบคำศัพท์ก่อนบันทึก")
     edited_df = st.data_editor(
@@ -147,7 +157,7 @@ if "vocab_df" in st.session_state:
         else:
             st.warning("⚠️ ไม่มีคำศัพท์ที่จะแสดง")
 
-# ✅ แปลเป็นประโยค
+# ---------- แปลเป็นประโยค ----------
 if text:
     st.subheader("📝 แปลเป็นประโยคเต็ม")
     try:
@@ -160,6 +170,5 @@ if text:
             tts_th.write_to_fp(th_audio)
             th_audio.seek(0)
             st.audio(th_audio, format='audio/mp3')
-
     except Exception as e:
         st.error("⚠️ แปลประโยคไม่ได้: " + str(e))
